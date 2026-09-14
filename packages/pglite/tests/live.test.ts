@@ -1151,6 +1151,41 @@ await testEsmCjsAndDTC(async (importType) => {
       await unsubscribe()
     })
 
+    it('deallocates all prepared statements for a windowed query on unsubscribe', async () => {
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS testTable (
+          id SERIAL PRIMARY KEY,
+          number INT
+        );
+      `)
+
+      await db.exec(`
+        INSERT INTO testTable (number)
+        SELECT i*10 FROM generate_series(1, 5) i;
+      `)
+
+      const { unsubscribe } = await db.live.query({
+        query: 'SELECT * FROM testTable ORDER BY number',
+        offset: 1,
+        limit: 2,
+        callback: () => {},
+      })
+
+      const subscribed = await db.query<{ name: string }>(
+        `SELECT name FROM pg_prepared_statements WHERE name LIKE 'live_query_%';`,
+      )
+      // A windowed query prepares both the windowed select and the total count
+      expect(subscribed.rows.length).toBe(2)
+
+      await unsubscribe()
+
+      const unsubscribed = await db.query<{ name: string }>(
+        `SELECT name FROM pg_prepared_statements WHERE name LIKE 'live_query_%';`,
+      )
+      // Both must be deallocated, the backing view is dropped with them
+      expect(unsubscribed.rows).toEqual([])
+    })
+
     it('throws error when only one of offset/limit is provided', async () => {
       await expect(
         db.live.query({
