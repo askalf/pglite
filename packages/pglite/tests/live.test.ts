@@ -1182,7 +1182,7 @@ await testEsmCjsAndDTC(async (importType) => {
       const unsubscribed = await db.query<{ name: string }>(
         `SELECT name FROM pg_prepared_statements WHERE name LIKE 'live_query_%';`,
       )
-      // Both must be deallocated, the backing view is dropped with them
+      // Both must be deallocated
       expect(unsubscribed.rows).toEqual([])
     })
 
@@ -1319,7 +1319,7 @@ await testEsmCjsAndDTC(async (importType) => {
 
       await windowed.unsubscribe()
 
-      // Only the still subscribed query's statements are left, and it keeps working
+      // Two statements remain, and the other query still refreshes
       const remaining = await db.query<{ name: string }>(
         `SELECT name FROM pg_prepared_statements WHERE name LIKE 'live_query_%' ORDER BY name;`,
       )
